@@ -17,11 +17,13 @@
   "author": "Ruben Hakopian <ruben.hakopian@gmail.com>",
   "license": "Propriatery",
   "dependencies": {
+    "socket.io-client": "^3.1.1",
     "the-lodash": "^2.0.0",
-    "the-logger": "^2.0.6",
-    "the-promise": "^2.0.4"
+    "the-promise": "^2.0.4",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
+    "@types/uuid": "^8.3.0",
     "@types/mocha": "^8.0.3",
     "@types/node": "^14.6.0",
     "@types/should": "^13.0.0",

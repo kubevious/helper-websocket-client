@@ -8,4 +8,4 @@ rm -rf dist/
 
 npm install
 npm install --only=dev
-npm update the-lodash the-promise the-logger 
+npm update the-lodash the-promise
