@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { io, Socket } from 'socket.io-client';
 
 import { WebSocketScope } from './scope';
-import { WebSockerSubscription, WebSocketHandlerCb, WebSocketOptions, WebSocketTarget } from './types';
+import { WebSocketSubscription, WebSocketHandlerCb, WebSocketOptions, WebSocketTarget } from './types';
 import { makeKey } from './utils';
 
 export class WebSocketClient
@@ -69,7 +69,7 @@ export class WebSocketClient
         }
     }
 
-    subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSockerSubscription
+    subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSocketSubscription
     {
         let id = makeKey(target);
 
