@@ -168,8 +168,12 @@ export class WebSocketClient
         const subscriptionInfo = this._subscriptions[id];
         if (subscriptionInfo)
         {
+            console.debug("[WebSocket] _handleUpdate :: subscriptionInfo. listeners count:",
+                _.keys(subscriptionInfo.listeners).length);
             for(let listener of _.values(subscriptionInfo.listeners))
             {
+                console.debug("[WebSocket] _handleUpdate :: call listener. target:",
+                    data.target);
                 listener(data.value, data.target);
             }
         }
