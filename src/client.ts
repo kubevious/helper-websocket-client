@@ -92,10 +92,11 @@ export class WebSocketClient
         return {
             close: () => {
                 console.debug('[WebSocket] Unsubscribe: ' + id);
-                if (this._subscriptions[id])
+                const subscriptionInfo = this._subscriptions[id];
+                if (subscriptionInfo)
                 {
-                    delete this._subscriptions[id].listeners[listenerId];
-                    if (_.keys(this._subscriptions[id].listeners).length == 0) {
+                    delete subscriptionInfo.listeners[listenerId];
+                    if (_.keys(subscriptionInfo.listeners).length == 0) {
                         this._notifyTarget(target, false);
                         delete this._subscriptions[id];
                     }
@@ -106,6 +107,8 @@ export class WebSocketClient
 
     unsubscribeAll()
     {
+        console.debug('[WebSocket] UnsubscribeAll');
+
         this._subscriptions = {};
         if (this._socket) {
             this._socket.emit('unsubscribe_all');
@@ -153,12 +156,14 @@ export class WebSocketClient
 
     private _handleUpdate(data : UpdateData)
     {
-        console.debug("[WebSocket] TARGET: " +
-            JSON.stringify(data.target) +
-            " => " +
+        console.debug("[WebSocket] TARGET: ",
+            JSON.stringify(data.target),
+            " => ",
             JSON.stringify(data.value));
 
         let id = makeKey(data.target);
+        console.debug("[WebSocket] _handleUpdate :: TARGET ID: ", id);
+        console.debug("[WebSocket] _handleUpdate :: this._subscriptions", _.keys(this._subscriptions));
 
         const subscriptionInfo = this._subscriptions[id];
         if (subscriptionInfo)
