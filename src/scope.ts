@@ -14,6 +14,7 @@ export class WebSocketScope
     {
         this._websocket = websocket;
         this._scopeTarget = scopeTarget;
+        this._cb = cb;
     }
 
     close()
@@ -92,7 +93,7 @@ export class WebSocketScope
         }
     }
 
-    private _handle(value: string, target: WebSocketTarget)
+    private _handle(value: any, target: WebSocketTarget)
     {
         if (this._cb) {
             this._cb(value, target);
