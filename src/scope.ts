@@ -1,6 +1,6 @@
 import _ from 'the-lodash';
 import { WebSocketClient } from './client';
-import { WebSockerSubscription, WebSocketHandlerCb, WebSocketTarget } from './types';
+import { WebSocketSubscription, WebSocketHandlerCb, WebSocketTarget } from './types';
 import { makeKey } from './utils';
 
 export class WebSocketScope
@@ -113,5 +113,5 @@ export class WebSocketScope
 interface TargetInfo
 {
     target: WebSocketTarget,
-    subscriber: WebSockerSubscription
+    subscriber: WebSocketSubscription
 }
