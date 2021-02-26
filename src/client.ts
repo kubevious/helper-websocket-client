@@ -72,7 +72,6 @@ export class WebSocketClient
     subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSocketSubscription
     {
         let id = makeKey(target);
-
         console.debug('[WebSocket] Subscribe: ' + id);
 
         if (!this._subscriptions[id]) {
@@ -162,18 +161,12 @@ export class WebSocketClient
             JSON.stringify(data.value));
 
         let id = makeKey(data.target);
-        console.debug("[WebSocket] _handleUpdate :: TARGET ID: ", id);
-        console.debug("[WebSocket] _handleUpdate :: this._subscriptions", _.keys(this._subscriptions));
 
         const subscriptionInfo = this._subscriptions[id];
         if (subscriptionInfo)
         {
-            console.debug("[WebSocket] _handleUpdate :: subscriptionInfo. listeners count:",
-                _.keys(subscriptionInfo.listeners).length);
             for(let listener of _.values(subscriptionInfo.listeners))
             {
-                console.debug("[WebSocket] _handleUpdate :: call listener. target:",
-                    data.target);
                 listener(data.value, data.target);
             }
         }
