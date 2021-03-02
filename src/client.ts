@@ -104,22 +104,25 @@ export class WebSocketClient
         }
     }
 
-    unsubscribeAll()
-    {
-        console.debug('[WebSocket] UnsubscribeAll');
-
-        this._subscriptions = {};
-        if (this._socket) {
-            this._socket.emit('unsubscribe_all');
-        }
-    }
-
     scope(target: WebSocketTarget, cb : WebSocketHandlerCb)
     {
         let scope = new WebSocketScope(this, target, cb);
         return scope;
     }
 
+
+    updateContext(updatedContext: WebSocketTarget)
+    {
+        if (!this._socket) {
+            return;
+        }
+        if (!this._socket.connected) {
+            return;
+        }
+
+        this._socket.emit(UserMessages.update_context, updatedContext)
+    }
+    
     private _notifyTarget(target : WebSocketTarget, isPresent: boolean)
     {
         if (!this._socket) {
@@ -132,9 +135,9 @@ export class WebSocketClient
         console.debug("[WebSocket] Notify. Present: " + isPresent + " :: " + JSON.stringify(target));
 
         if (isPresent) {
-            this._socket.emit('subscribe', target)
+            this._socket.emit(UserMessages.subscribe, target)
         } else {
-            this._socket.emit('unsubscribe', target)
+            this._socket.emit(UserMessages.unsubscribe, target)
         }
     }
 
@@ -184,4 +187,11 @@ interface UpdateData
 {
     value: any,
     target: WebSocketTarget
+}
+
+export enum UserMessages
+{
+    subscribe = 'subscribe',
+    unsubscribe = 'unsubscribe',
+    update_context = 'update_context'
 }
