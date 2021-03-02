@@ -11,6 +11,7 @@ export class WebSocketClient
     private _socket : Socket | null = null;
     private _customOptions : WebSocketOptions;
     private _subscriptions : Record<string, SubscriptionInfo> = {};
+    private _context : Record<string, any> = {};
     private _headers : Record<string, any> = {};
 
     constructor(customOptions? : WebSocketOptions)
@@ -110,8 +111,25 @@ export class WebSocketClient
         return scope;
     }
 
-
     updateContext(updatedContext: WebSocketTarget)
+    {
+        for(let key of _.keys(updatedContext))
+        {
+            let value = updatedContext[key];
+            if (_.isNullOrUndefined(value))
+            {
+                delete this._context[key];
+            }
+            else
+            {
+                this._context[key] = value;
+            }
+        }
+
+        this._notifyContext();
+    }
+
+    private _notifyContext()
     {
         if (!this._socket) {
             return;
@@ -120,7 +138,9 @@ export class WebSocketClient
             return;
         }
 
-        this._socket.emit(UserMessages.update_context, updatedContext)
+        console.debug("[WebSocket] Notify Context: ", this._context);
+
+        this._socket.emit(UserMessages.update_context, this._context)
     }
     
     private _notifyTarget(target : WebSocketTarget, isPresent: boolean)
@@ -132,7 +152,7 @@ export class WebSocketClient
             return;
         }
 
-        console.debug("[WebSocket] Notify. Present: " + isPresent + " :: " + JSON.stringify(target));
+        console.debug("[WebSocket] Notify. Present: ", isPresent, target);
 
         if (isPresent) {
             this._socket.emit(UserMessages.subscribe, target)
@@ -145,6 +165,8 @@ export class WebSocketClient
     {
         console.log('[WebSocket] CONNECTED')
 
+        this._notifyContext();
+        
         for(let subscription of _.values(this._subscriptions))
         {
             this._notifyTarget(subscription.target, true);
