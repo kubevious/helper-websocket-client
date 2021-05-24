@@ -59,6 +59,8 @@ export class WebSocketClient
 
         let headers : Record<string, string> = {};
 
+        console.log("[WebSocketClient] Connecting...");
+
         Promise.resolve()
             .then(() => {
                 return Promise.serial(_.keys(this._headers), name => {
@@ -85,7 +87,6 @@ export class WebSocketClient
 
                 console.log("[WebSocketClient] Headers: ", headers);
 
-                
                 socketOptions.reconnection = false;
 
                 const socket = io(socketOptions);
@@ -100,11 +101,12 @@ export class WebSocketClient
                 })
         
                 socket.on('disconnect', () => {
-                    this._handleDisconnect();
+                    this._handleDisconnect(socket);
                 })
         
                 socket.on("connect_error", (error: Error) => {
                     console.warn("[WebSocketClient] Connect Error: ", error.message);
+                    this._handleDisconnect(socket);
                 });
         
                 this._socket = socket;
@@ -112,7 +114,7 @@ export class WebSocketClient
             })
             .catch(reason => {
                 console.error("[WebSocketClient] Rejected: ", reason);
-                this._handleDisconnect();
+                this._handleDisconnect(null);
             })
     }
 
@@ -232,15 +234,25 @@ export class WebSocketClient
         }
     }
 
-    private _handleDisconnect()
+    private _handleDisconnect(oldSocket: Socket | null)
     {
         console.log("[WebSocketClient] Disconnected.");
-
-        this._isConnecting = false;
 
         if (!this._isRunning) {
             return;
         }
+
+        if (oldSocket) {
+            if (!this._socket) {
+                return;
+            }
+            
+            if (oldSocket! !== this._socket!) {
+                return;
+            }
+        }
+
+        this._isConnecting = false;
 
         this._socket = null;
         setTimeout(() => {
