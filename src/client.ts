@@ -6,40 +6,72 @@ import { WebSocketScope } from './scope';
 import { WebSocketSubscription, WebSocketHandlerCb, WebSocketOptions, WebSocketTarget } from './types';
 import { makeKey } from './utils';
 
+export type HeaderValue = string | number;
+export type HeaderValueX = HeaderValue | (() => HeaderValue);
+
 export class WebSocketClient
 {
     private _socket : Socket | null = null;
     private _customOptions : WebSocketOptions;
     private _subscriptions : Record<string, SubscriptionInfo> = {};
     private _context : Record<string, any> = {};
-    private _headers : Record<string, any> = {};
+    private _headers : Record<string, HeaderValueX> = {};
+    private _isRunning : boolean = false;
 
     constructor(customOptions? : WebSocketOptions)
     {
         this._customOptions = customOptions || {};
     }
 
-    header(name: string, value: any)
+    header(name: string, value: HeaderValueX)
     {
         this._headers[name] = value;
     }
 
     run()
     {
-        console.log("[WebSocket] Running.");
+        console.log("[WebSocketClient] Running.");
+        this._isRunning = true;
+        this._connect();
+    }
+
+    private _connect()
+    {
+        if (!this._isRunning) {
+            return;
+        }
+        if (this._socket) {
+            return;
+        }
 
         let socketOptions = _.cloneDeep(this._customOptions);
 
+        let headers : Record<string, string> = {};
+        for(let name of _.keys(this._headers))
+        {
+            const value = this._headers[name];
+            if (_.isFunction(value)) {
+                let finalValue = value();
+                headers[name] = _.toString(finalValue);
+            }
+            else
+            {
+                headers[name] = _.toString(value);
+            }
+        }
+
         socketOptions.transportOptions = {
             polling: {
-                extraHeaders: this._headers
+                extraHeaders: headers
             }
         };
+
+        socketOptions.reconnection = false;
         
         const socket = io(socketOptions);
 
         socket.on('connect', () => {
-            console.log("[WebSocket] Connected.");
+            console.log("[WebSocketClient] Connected.");
             this._handleConnect();
         })
 
@@ -48,12 +80,11 @@ export class WebSocketClient
         })
 
         socket.on('disconnect', () => {
-            console.log("[WebSocket] Disconnected.");
             this._handleDisconnect();
         })
 
         socket.on("connect_error", (error: Error) => {
-            console.warn("[WebSocket] Connect Error: ", error.message);
+            console.warn("[WebSocketClient] Connect Error: ", error.message);
         });
 
         this._socket = socket;
@@ -61,7 +92,9 @@ export class WebSocketClient
 
     close()
     {
-        console.log("[WebSocket] Closing.");
+        console.log("[WebSocketClient] Closing.");
+
+        this._isRunning = false;
 
         this._subscriptions = {};
         if (this._socket) {
@@ -73,7 +106,7 @@ export class WebSocketClient
     subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSocketSubscription
     {
         let id = makeKey(target);
-        console.debug('[WebSocket] Subscribe: ' + id);
+        console.debug("[WebSocketClient]Subscribe: " + id);
 
         if (!this._subscriptions[id]) {
             this._subscriptions[id] = {
@@ -91,7 +124,7 @@ export class WebSocketClient
 
         return {
             close: () => {
-                console.debug('[WebSocket] Unsubscribe: ' + id);
+                console.debug("[WebSocketClient] Unsubscribe: " + id);
                 const subscriptionInfo = this._subscriptions[id];
                 if (subscriptionInfo)
                 {
@@ -138,7 +171,7 @@ export class WebSocketClient
             return;
         }
 
-        console.debug("[WebSocket] Notify Context: ", this._context);
+        console.debug("[WebSocketClient] Notify Context: ", this._context);
 
         this._socket.emit(UserMessages.update_context, this._context)
     }
@@ -152,7 +185,7 @@ export class WebSocketClient
             return;
         }
 
-        console.debug("[WebSocket] Notify. Present: ", isPresent, target);
+        console.debug("[WebSocketClient] Notify. Present: ", isPresent, target);
 
         if (isPresent) {
             this._socket.emit(UserMessages.subscribe, target)
@@ -163,7 +196,7 @@ export class WebSocketClient
 
     private _handleConnect()
     {
-        console.log('[WebSocket] CONNECTED')
+        console.log("[WebSocketClient] Connected.")
 
         this._notifyContext();
         
@@ -175,12 +208,21 @@ export class WebSocketClient
 
     private _handleDisconnect()
     {
-        console.log('[WebSocket] DISCONNECTED')
+        console.log("[WebSocketClient] Disconnected.");
+
+        if (!this._isRunning) {
+            return;
+        }
+
+        this._socket = null;
+        setTimeout(() => {
+            this._connect();
+        }, 1000)
     }
 
     private _handleUpdate(data : UpdateData)
     {
-        console.debug("[WebSocket] TARGET: ",
+        console.debug("[WebSocketClient] Target: ",
             JSON.stringify(data.target),
             " => ",
             JSON.stringify(data.value));

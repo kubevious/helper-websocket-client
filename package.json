@@ -19,7 +19,7 @@
   "dependencies": {
     "socket.io-client": "^4.0.1",
     "the-lodash": "^2.0.9",
-    "the-promise": "^2.0.12",
+    "the-promise": "^2.0.13",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
