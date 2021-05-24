@@ -14,9 +14,15 @@ describe('client', () => {
         const client = new WebSocketClient({ 
             path: 'http://localhost:3333/socket',
         })
+        client.header("Fixed", "Foo1");
+        client.header("Function", () => "Foo2");
+        client.header("Promise", Promise.timeout(10).then(() => "Foo3"));
         client.run();
 
         return Promise.timeout(PAUSE_TIMEOUT)
+            .then(() => {
+                should(client.finalHeaders).be.eql({ Fixed: 'Foo1', Function: 'Foo2', Promise: 'Foo3' });
+            })
             .then(() => {
                 client.close();
             });

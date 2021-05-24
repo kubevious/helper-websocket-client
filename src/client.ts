@@ -1,4 +1,5 @@
 import _ from 'the-lodash';
+import { Promise, Resolvable } from 'the-promise'
 import { v4 as uuidv4 } from 'uuid';
 import { io, Socket } from 'socket.io-client';
 
@@ -7,7 +8,7 @@ import { WebSocketSubscription, WebSocketHandlerCb, WebSocketOptions, WebSocketT
 import { makeKey } from './utils';
 
 export type HeaderValue = string | number;
-export type HeaderValueX = HeaderValue | (() => HeaderValue);
+export type HeaderValueX = HeaderValue | (() => HeaderValue) | Resolvable<HeaderValue>;
 
 export class WebSocketClient
 {
@@ -17,10 +18,16 @@ export class WebSocketClient
     private _context : Record<string, any> = {};
     private _headers : Record<string, HeaderValueX> = {};
     private _isRunning : boolean = false;
+    private _isConnecting : boolean = false;
+    private _finalHeaders: Record<string, string> = {};
 
     constructor(customOptions? : WebSocketOptions)
     {
         this._customOptions = customOptions || {};
+    }
+
+    get finalHeaders() {
+        return this._finalHeaders;
     }
 
     header(name: string, value: HeaderValueX)
@@ -43,51 +50,70 @@ export class WebSocketClient
         if (this._socket) {
             return;
         }
+        if (this._isConnecting) {
+            return;
+        }
+        this._isConnecting = true;
 
         let socketOptions = _.cloneDeep(this._customOptions);
 
         let headers : Record<string, string> = {};
-        for(let name of _.keys(this._headers))
-        {
-            const value = this._headers[name];
-            if (_.isFunction(value)) {
-                let finalValue = value();
-                headers[name] = _.toString(finalValue);
-            }
-            else
-            {
-                headers[name] = _.toString(value);
-            }
-        }
 
-        socketOptions.transportOptions = {
-            polling: {
-                extraHeaders: headers
-            }
-        };
+        Promise.resolve()
+            .then(() => {
+                return Promise.serial(_.keys(this._headers), name => {
+                    const rawValue = this._headers[name];
+                    return Promise.resolve(rawValue)
+                        .then(value => {
+                            if (_.isFunction(value)) {
+                                const finalValue = value();
+                                headers[name] = _.toString(finalValue);
+                            } else {
+                                headers[name] = _.toString(value);
+                            }
+                        })
+                })
+            })
+            .then(() => {
+                socketOptions.transportOptions = {
+                    polling: {
+                        extraHeaders: headers
+                    }
+                };
 
-        socketOptions.reconnection = false;
+                this._finalHeaders = headers;
+
+                console.log("[WebSocketClient] Headers: ", headers);
+
+                
+                socketOptions.reconnection = false;
+
+                const socket = io(socketOptions);
+
+                socket.on('connect', () => {
+                    console.log("[WebSocketClient] Connected.");
+                    this._handleConnect();
+                })
         
-        const socket = io(socketOptions);
-
-        socket.on('connect', () => {
-            console.log("[WebSocketClient] Connected.");
-            this._handleConnect();
-        })
-
-        socket.on('update', (data: any) => {
-            this._handleUpdate(data);
-        })
-
-        socket.on('disconnect', () => {
-            this._handleDisconnect();
-        })
-
-        socket.on("connect_error", (error: Error) => {
-            console.warn("[WebSocketClient] Connect Error: ", error.message);
-        });
-
-        this._socket = socket;
+                socket.on('update', (data: any) => {
+                    this._handleUpdate(data);
+                })
+        
+                socket.on('disconnect', () => {
+                    this._handleDisconnect();
+                })
+        
+                socket.on("connect_error", (error: Error) => {
+                    console.warn("[WebSocketClient] Connect Error: ", error.message);
+                });
+        
+                this._socket = socket;
+                return null;
+            })
+            .catch(reason => {
+                console.error("[WebSocketClient] Rejected: ", reason);
+                this._handleDisconnect();
+            })
     }
 
     close()
@@ -209,6 +235,8 @@ export class WebSocketClient
     private _handleDisconnect()
     {
         console.log("[WebSocketClient] Disconnected.");
+
+        this._isConnecting = false;
 
         if (!this._isRunning) {
             return;
