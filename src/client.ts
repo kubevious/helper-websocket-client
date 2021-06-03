@@ -9,6 +9,7 @@ import { makeKey } from './utils';
 
 export type HeaderValue = string | number;
 export type HeaderValueX = HeaderValue | (() => HeaderValue) | Resolvable<HeaderValue>;
+export type AuthorizationTokenCb = () => string;
 
 export class WebSocketClient
 {
@@ -20,6 +21,7 @@ export class WebSocketClient
     private _isRunning : boolean = false;
     private _isConnecting : boolean = false;
     private _finalHeaders: Record<string, string> = {};
+    private _authorizationTokenCb : AuthorizationTokenCb | null = null;
 
     constructor(customOptions? : WebSocketOptions)
     {
@@ -28,6 +30,11 @@ export class WebSocketClient
 
     get finalHeaders() {
         return this._finalHeaders;
+    }
+
+    authorization(cb: AuthorizationTokenCb)
+    {
+        this._authorizationTokenCb = cb;
     }
 
     header(name: string, value: HeaderValueX)
@@ -57,9 +64,18 @@ export class WebSocketClient
 
         let socketOptions = _.cloneDeep(this._customOptions);
 
+        if (!socketOptions.query) {
+            socketOptions.query = {};
+        }
+
         let headers : Record<string, string> = {};
 
         console.log("[WebSocketClient] Connecting...");
+
+        if (this._authorizationTokenCb) {
+            const token = this._authorizationTokenCb();
+            socketOptions.query["Authorization"] = token;
+        }
 
         Promise.resolve()
             .then(() => {
@@ -85,7 +101,7 @@ export class WebSocketClient
 
                 this._finalHeaders = headers;
 
-                console.log("[WebSocketClient] Headers: ", headers);
+                console.debug("[WebSocketClient] socketOptions: ", socketOptions);
 
                 socketOptions.reconnection = false;
 
