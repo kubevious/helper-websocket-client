@@ -7,5 +7,6 @@ rm -rf node_modules/
 rm -rf dist/
 
 npm install
-npm install --only=dev
-npm update the-lodash the-promise
+npm update \
+    the-lodash \
+    the-promise

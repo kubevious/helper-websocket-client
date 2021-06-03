@@ -17,7 +17,7 @@
   "author": "Ruben Hakopian <ruben.hakopian@gmail.com>",
   "license": "Propriatery",
   "dependencies": {
-    "socket.io-client": "^4.0.1",
+    "socket.io-client": "^4.1.2",
     "the-lodash": "^2.0.9",
     "the-promise": "^2.0.13",
     "uuid": "^8.3.2"
