@@ -150,7 +150,7 @@ export class WebSocketClient
     subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSocketSubscription
     {
         let id = makeKey(target);
-        console.debug("[WebSocketClient]Subscribe: " + id);
+        console.debug("[WebSocketClient] Subscribe: " + id);
 
         if (!this._subscriptions[id]) {
             this._subscriptions[id] = {
@@ -159,18 +159,26 @@ export class WebSocketClient
             }
         }
 
-        if (_.keys(this._subscriptions[id].listeners).length == 0) {
-            this._notifyTarget(target, true);
-        }
+        const subscriptionInfo = this._subscriptions[id]!;
+
+        const isFirstListener = (_.keys(subscriptionInfo.listeners).length == 0);
 
         let listenerId = uuidv4();
-        this._subscriptions[id].listeners[listenerId] = cb;
+        subscriptionInfo.listeners[listenerId] = cb;
+
+        if (isFirstListener) {
+            this._notifyTarget(target, true);
+        } else {
+            if (!_.isUndefined(subscriptionInfo.lastValue)) {
+                cb(subscriptionInfo.lastValue, target);
+            }
+        }
+
 
         return {
             close: () => {
                 console.debug("[WebSocketClient] Unsubscribe: " + id);
-                const subscriptionInfo = this._subscriptions[id];
-                if (subscriptionInfo)
+                if (subscriptionInfo.listeners[listenerId])
                 {
                     delete subscriptionInfo.listeners[listenerId];
                     if (_.keys(subscriptionInfo.listeners).length == 0) {
@@ -288,9 +296,11 @@ export class WebSocketClient
         const subscriptionInfo = this._subscriptions[id];
         if (subscriptionInfo)
         {
+            const value = data.value;
+            subscriptionInfo.lastValue = value;
             for(let listener of _.values(subscriptionInfo.listeners))
             {
-                listener(data.value, data.target);
+                listener(value, data.target);
             }
         }
     }
@@ -300,7 +310,8 @@ export class WebSocketClient
 interface SubscriptionInfo 
 {
     target: WebSocketTarget,
-    listeners: Record<string, WebSocketHandlerCb>
+    listeners: Record<string, WebSocketHandlerCb>,
+    lastValue?: any
 }
 
 interface UpdateData
