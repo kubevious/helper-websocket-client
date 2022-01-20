@@ -13,6 +13,7 @@ export type AuthorizationTokenCb = () => string;
 
 export class WebSocketClient
 {
+    private _socketName: string;
     private _socket : Socket | null = null;
     private _customOptions : WebSocketOptions;
     private _subscriptions : Record<string, SubscriptionInfo> = {};
@@ -23,8 +24,9 @@ export class WebSocketClient
     private _finalHeaders: Record<string, string> = {};
     private _authorizationTokenCb : AuthorizationTokenCb | null = null;
 
-    constructor(customOptions? : WebSocketOptions)
+    constructor(socketName: string, customOptions? : WebSocketOptions)
     {
+        this._socketName = socketName;
         this._customOptions = customOptions || {};
     }
 
@@ -44,9 +46,98 @@ export class WebSocketClient
 
     run()
     {
-        console.log("[WebSocketClient] Running.");
+        console.log("[WebSocketClient] {", this._socketName, "} Running.");
         this._isRunning = true;
         this._connect();
+    }
+    
+    forceReconnect()
+    {
+        console.log("[WebSocketClient] {", this._socketName, "} ForceReconnect.");
+
+        if (this._socket) {
+            this._socket.disconnect();
+        }
+    }
+
+    close()
+    {
+        console.log("[WebSocketClient] {", this._socketName, "} Close.");
+
+        this._isRunning = false;
+
+        this._subscriptions = {};
+        if (this._socket) {
+            this._socket!.close();
+            this._socket = null;
+        }
+    }
+
+    subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSocketSubscription
+    {
+        const id = makeKey(target);
+        console.log("[WebSocketClient] {", this._socketName, "} Subscribe: " + id);
+
+        if (!this._subscriptions[id]) {
+            this._subscriptions[id] = {
+                target: target,
+                listeners: {}
+            }
+        }
+
+        const subscriptionInfo = this._subscriptions[id]!;
+
+        const isFirstListener = (_.keys(subscriptionInfo.listeners).length == 0);
+
+        const listenerId = uuidv4();
+        subscriptionInfo.listeners[listenerId] = cb;
+
+        if (isFirstListener) {
+            this._notifyTarget(target, true);
+        } else {
+            if (!_.isUndefined(subscriptionInfo.lastValue)) {
+                cb(subscriptionInfo.lastValue, target);
+            }
+        }
+
+
+        return {
+            close: () => {
+                console.log("[WebSocketClient] {", this._socketName, "} Unsubscribe: " + id);
+                if (subscriptionInfo.listeners[listenerId])
+                {
+                    delete subscriptionInfo.listeners[listenerId];
+                    if (_.keys(subscriptionInfo.listeners).length == 0) {
+                        this._notifyTarget(target, false);
+                        delete this._subscriptions[id];
+                    }
+                }
+            }
+        }
+    }
+
+    scope(target: WebSocketTarget, cb : WebSocketHandlerCb)
+    {
+        const scope = new WebSocketScope(this, target, cb);
+        return scope;
+    }
+
+    updateContext(updatedContext: WebSocketTarget)
+    {
+        for(const key of _.keys(updatedContext))
+        {
+            const value = updatedContext[key];
+            if (_.isNullOrUndefined(value))
+            {
+                delete this._context[key];
+            }
+            else
+            {
+                this._context[key] = value;
+            }
+        }
+
+        this._notifyContext();
     }
 
     private _connect()
@@ -62,22 +153,22 @@ export class WebSocketClient
         }
         this._isConnecting = true;
 
-        let socketOptions = _.cloneDeep(this._customOptions);
+        const socketOptions = _.cloneDeep(this._customOptions);
 
         if (!socketOptions.query) {
             socketOptions.query = {};
         }
 
-        let headers : Record<string, string> = {};
+        const headers : Record<string, string> = {};
 
-        console.log("[WebSocketClient] Connecting...");
+        console.log("[WebSocketClient] {", this._socketName, "} Connecting...");
 
         if (this._authorizationTokenCb) {
             const token = this._authorizationTokenCb();
             socketOptions.query["Authorization"] = token;
         }
 
-        Promise.resolve()
+        Promise.resolve(null)
             .then(() => {
                 return Promise.serial(_.keys(this._headers), name => {
                     const rawValue = this._headers[name];
@@ -101,14 +192,14 @@ export class WebSocketClient
 
                 this._finalHeaders = headers;
 
-                console.debug("[WebSocketClient] socketOptions: ", socketOptions);
+                console.log("[WebSocketClient] {", this._socketName, "} socketOptions: ", socketOptions);
 
                 socketOptions.reconnection = false;
 
                 const socket = io(socketOptions);
 
                 socket.on('connect', () => {
-                    console.log("[WebSocketClient] Connected.");
+                    console.log("[WebSocketClient] {", this._socketName, "} Connected.");
                     this._handleConnect();
                 })
         
@@ -121,7 +212,7 @@ export class WebSocketClient
                 })
         
                 socket.on("connect_error", (error: Error) => {
-                    console.warn("[WebSocketClient] Connect Error: ", error.message);
+                    console.warn("[WebSocketClient] {", this._socketName, "} Connect Error: ", error.message);
                     this._handleDisconnect(socket);
                 });
         
@@ -131,87 +222,8 @@ export class WebSocketClient
             .catch(reason => {
                 console.error("[WebSocketClient] Rejected: ", reason);
                 this._handleDisconnect(null);
+                return null;
             })
-    }
-
-    close()
-    {
-        console.log("[WebSocketClient] Closing.");
-
-        this._isRunning = false;
-
-        this._subscriptions = {};
-        if (this._socket) {
-            this._socket!.close();
-            this._socket = null;
-        }
-    }
-
-    subscribe(target: WebSocketTarget, cb : WebSocketHandlerCb) : WebSocketSubscription
-    {
-        let id = makeKey(target);
-        console.debug("[WebSocketClient] Subscribe: " + id);
-
-        if (!this._subscriptions[id]) {
-            this._subscriptions[id] = {
-                target: target,
-                listeners: {}
-            }
-        }
-
-        const subscriptionInfo = this._subscriptions[id]!;
-
-        const isFirstListener = (_.keys(subscriptionInfo.listeners).length == 0);
-
-        let listenerId = uuidv4();
-        subscriptionInfo.listeners[listenerId] = cb;
-
-        if (isFirstListener) {
-            this._notifyTarget(target, true);
-        } else {
-            if (!_.isUndefined(subscriptionInfo.lastValue)) {
-                cb(subscriptionInfo.lastValue, target);
-            }
-        }
-
-
-        return {
-            close: () => {
-                console.debug("[WebSocketClient] Unsubscribe: " + id);
-                if (subscriptionInfo.listeners[listenerId])
-                {
-                    delete subscriptionInfo.listeners[listenerId];
-                    if (_.keys(subscriptionInfo.listeners).length == 0) {
-                        this._notifyTarget(target, false);
-                        delete this._subscriptions[id];
-                    }
-                }
-            }
-        }
-    }
-
-    scope(target: WebSocketTarget, cb : WebSocketHandlerCb)
-    {
-        let scope = new WebSocketScope(this, target, cb);
-        return scope;
-    }
-
-    updateContext(updatedContext: WebSocketTarget)
-    {
-        for(let key of _.keys(updatedContext))
-        {
-            let value = updatedContext[key];
-            if (_.isNullOrUndefined(value))
-            {
-                delete this._context[key];
-            }
-            else
-            {
-                this._context[key] = value;
-            }
-        }
-
-        this._notifyContext();
     }
 
     private _notifyContext()
@@ -223,7 +235,7 @@ export class WebSocketClient
             return;
         }
 
-        console.debug("[WebSocketClient] Notify Context: ", this._context);
+        console.log("[WebSocketClient] {", this._socketName, "} Notify Context: ", this._context);
 
         this._socket.emit(UserMessages.update_context, this._context)
     }
@@ -237,7 +249,7 @@ export class WebSocketClient
             return;
         }
 
-        console.debug("[WebSocketClient] Notify. Present: ", isPresent, target);
+        console.log("[WebSocketClient] {", this._socketName, "} Notify. Present: ", isPresent, target);
 
         if (isPresent) {
             this._socket.emit(UserMessages.subscribe, target)
@@ -248,11 +260,11 @@ export class WebSocketClient
 
     private _handleConnect()
     {
-        console.log("[WebSocketClient] Connected.")
+        console.log("[WebSocketClient] {", this._socketName, "} Connected.")
 
         this._notifyContext();
         
-        for(let subscription of _.values(this._subscriptions))
+        for(const subscription of _.values(this._subscriptions))
         {
             this._notifyTarget(subscription.target, true);
         }
@@ -260,7 +272,7 @@ export class WebSocketClient
 
     private _handleDisconnect(oldSocket: Socket | null)
     {
-        console.log("[WebSocketClient] Disconnected.");
+        console.log("[WebSocketClient] {", this._socketName, "} Disconnected.");
 
         if (!this._isRunning) {
             return;
@@ -286,19 +298,19 @@ export class WebSocketClient
 
     private _handleUpdate(data : UpdateData)
     {
-        console.debug("[WebSocketClient] Target: ",
+        console.log("[WebSocketClient] {", this._socketName, "} TargetUpdate: ",
             JSON.stringify(data.target),
             " => ",
             JSON.stringify(data.value));
 
-        let id = makeKey(data.target);
+        const id = makeKey(data.target);
 
         const subscriptionInfo = this._subscriptions[id];
         if (subscriptionInfo)
         {
             const value = data.value;
             subscriptionInfo.lastValue = value;
-            for(let listener of _.values(subscriptionInfo.listeners))
+            for(const listener of _.values(subscriptionInfo.listeners))
             {
                 listener(value, data.target);
             }

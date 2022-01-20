@@ -26,12 +26,12 @@ export class WebSocketScope
     subscribe(target: WebSocketTarget)
     {
         target = this._makeTarget(target);
-        let targetId = makeKey(target);
+        const targetId = makeKey(target);
         if (this._targets[targetId]) {
             return;
         }
 
-        let wsSubscriber = this._websocket.subscribe(target, this._handle.bind(this))
+        const wsSubscriber = this._websocket.subscribe(target, this._handle.bind(this))
 
         this._targets[targetId] = {
             target: target,
@@ -42,8 +42,8 @@ export class WebSocketScope
     unsubscribe(target: WebSocketTarget)
     {
         target = this._makeTarget(target);
-        let targetId = makeKey(target);
-        let info = this._targets[targetId];
+        const targetId = makeKey(target);
+        const info = this._targets[targetId];
 
         if (!info) {
             return;
@@ -56,12 +56,10 @@ export class WebSocketScope
     replace(newTargets: WebSocketTarget[])
     {
         newTargets = newTargets.map(x => this._makeTarget(x));
-        let newTargetsDict = _.makeDict(newTargets, x => makeKey(x), x => x);
-        let diffs = [
+        const newTargetsDict = _.makeDict(newTargets, x => makeKey(x), x => x);
+        const diffs = [ ];
 
-        ];
-
-        for(let id of _.keys(this._targets))
+        for(const id of _.keys(this._targets))
         {
             if (!newTargetsDict[id])
             {
@@ -72,7 +70,7 @@ export class WebSocketScope
             }
         }
 
-        for(let id of _.keys(newTargetsDict))
+        for(const id of _.keys(newTargetsDict))
         {
             if (!this._targets[id])
             {
@@ -83,7 +81,7 @@ export class WebSocketScope
             }
         }
 
-        for(let delta of diffs)
+        for(const delta of diffs)
         {
             if (delta.present) {
                 this.subscribe(delta.target);

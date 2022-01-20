@@ -11,7 +11,7 @@ const TEST_TIMEOUT = PAUSE_TIMEOUT + 2000;
 describe('client', () => {
    
     it('construct', () => {
-        const client = new WebSocketClient({ 
+        const client = new WebSocketClient('sample-socket', { 
             path: 'http://localhost:3333/socket',
         })
         client.header("Fixed", "Foo1");
