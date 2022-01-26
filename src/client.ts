@@ -1,5 +1,5 @@
 import _ from 'the-lodash';
-import { Promise, Resolvable } from 'the-promise'
+import { BlockingResolver, Promise, Resolvable } from 'the-promise'
 import { v4 as uuidv4 } from 'uuid';
 import { io, Socket } from 'socket.io-client';
 
@@ -22,7 +22,8 @@ export class WebSocketClient
     private _isRunning : boolean = false;
     private _isConnecting : boolean = false;
     private _finalHeaders: Record<string, string> = {};
-    private _authorizationTokenCb : AuthorizationTokenCb | null = null;
+
+    private _authorizerResolver : BlockingResolver<string> | null = null; 
 
     constructor(socketName: string, customOptions? : WebSocketOptions)
     {
@@ -36,7 +37,12 @@ export class WebSocketClient
 
     authorization(cb: AuthorizationTokenCb)
     {
-        this._authorizationTokenCb = cb;
+        this._authorizerResolver = new BlockingResolver(cb);
+    }
+
+    authorizationP(resolver: BlockingResolver<string>)
+    {
+        this._authorizerResolver = resolver;
     }
 
     header(name: string, value: HeaderValueX)
@@ -136,7 +142,6 @@ export class WebSocketClient
                 this._context[key] = value;
             }
         }
-
         this._notifyContext();
     }
 
@@ -163,12 +168,22 @@ export class WebSocketClient
 
         console.log("[WebSocketClient] {", this._socketName, "} Connecting...");
 
-        if (this._authorizationTokenCb) {
-            const token = this._authorizationTokenCb();
-            socketOptions.query["Authorization"] = token;
-        }
-
         Promise.resolve(null)
+            .then(() => {
+                if (!this._authorizerResolver) {
+                    return;
+                }
+
+                return this._authorizerResolver.resolve()
+                    .then(token => {
+                        if (token) {
+                            socketOptions.query!["Authorization"] = token;
+                        } else {
+                            // Should we throw an error?   
+                            console.error("[WebSocketClient] Could not fetch a token.");
+                        }
+                    });
+            })
             .then(() => {
                 return Promise.serial(_.keys(this._headers), name => {
                     const rawValue = this._headers[name];
