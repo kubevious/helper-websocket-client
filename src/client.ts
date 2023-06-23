@@ -1,5 +1,5 @@
 import _ from 'the-lodash';
-import { BlockingResolver, Promise, Resolvable } from 'the-promise'
+import { BlockingResolver, MyPromise, Resolvable } from 'the-promise'
 import { v4 as uuidv4 } from 'uuid';
 import { io, Socket } from 'socket.io-client';
 
@@ -164,6 +164,11 @@ export class WebSocketClient
             socketOptions.query = {};
         }
 
+        // TODO: think about this:
+        // if (!socketOptions.transports) {
+        //     socketOptions.transports = ['websocket'];
+        // }
+
         const headers : Record<string, string> = {};
 
         console.log("[WebSocketClient] {", this._socketName, "} Connecting...");
@@ -185,7 +190,7 @@ export class WebSocketClient
                     });
             })
             .then(() => {
-                return Promise.serial(_.keys(this._headers), name => {
+                return MyPromise.serial(_.keys(this._headers), name => {
                     const rawValue = this._headers[name];
                     return Promise.resolve(rawValue)
                         .then(value => {
